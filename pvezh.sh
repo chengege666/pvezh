@@ -70,10 +70,10 @@ elif [ "$mode" == "2" ]; then
     
     # 交互配置 (增加了容器名称自定义)
     suggest_id=$(pvesh get /cluster/nextid)
-    read -p "[配置] 容器 ID (默认 $suggest_id): " ctid; ctid=${ctid:-$suggest_id}
+    read -p "[配置] 请输入自定义容器 ID (留空则使用未使用的 ID): " ctid; ctid=${ctid:-$suggest_id}
     
     # --- 新增：自定义容器名 ---
-    read -p "[配置] 容器名称 (默认 自定义): " cname; cname=${cname:-自定义}
+    read -p "[配置] 容器名称 (默认 OpenWrt-LXC): " cname; cname=${cname:-OpenWrt-LXC}
     
     read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
     read -p "[配置] 内存 MB (默认 512): " mem; mem=${mem:-512}
