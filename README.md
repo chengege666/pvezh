@@ -25,7 +25,7 @@
     chmod +x pvezh.sh
     ./pvezh.sh
     ```
-    或者，如果您希望一键下载并执行（假设脚本已托管）：
+    或者，如果您希望一键下载并执行：
     ```bash
     wget -O pvezh.sh https://raw.githubusercontent.com/chengege666/pvezh/main/pvezh.sh && chmod +x pvezh.sh && ./pvezh.sh
     ```
