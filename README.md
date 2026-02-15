@@ -19,10 +19,16 @@
 ## 使用方法
 
 1.  **上传镜像文件**: 将您的 `.img` 或 `.img.gz` 镜像文件上传到 PVE 主机的任意目录，或者 `/var/lib/vz/template/iso/` 目录。
-2.  **运行脚本**: 在 PVE 主机上执行此脚本。
-    ```bash
-    ./pvezh.sh
-    ```
+2.  **运行脚本**:
+    -   **上传并执行**: 将 `pvezh.sh` 脚本上传到 PVE 主机，例如您的家目录。然后，通过以下命令赋予执行权限并运行：
+        ```bash
+        chmod +x pvezh.sh
+        ./pvezh.sh
+        ```
+    -   **一键下载并执行 (如果脚本已托管)**: 如果脚本托管在某个 URL (例如 GitHub Gist 或仓库)，您可以使用 `wget` 命令直接下载、赋予权限并运行。请将 `[脚本的URL]` 替换为实际的脚本下载地址。
+        ```bash
+        wget -O pvezh.sh https://raw.githubusercontent.com/chengege666/pvezh/main/pvezh.sh && chmod +x pvezh.sh && ./pvezh.sh
+        ```
 3.  **按照提示操作**: 脚本会引导您完成以下步骤：
     - 选择要转换的镜像文件。
     - 输入新的虚拟机 ID（脚本会提供建议）。
@@ -45,6 +51,3 @@
 ## 贡献
 欢迎对本项目进行贡献。如果您有任何改进建议或发现 Bug，请提交 Issue 或 Pull Request。
 
-## 许可证
-本项目采用 MIT 许可证。
-wget -O pve_convert.sh https://raw.githubusercontent.com/您的用户名/仓库名/main/pve_convert.sh && chmod +x pve_convert.sh && ./pve_convert.sh
