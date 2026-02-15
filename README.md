@@ -25,7 +25,7 @@
         chmod +x pvezh.sh
         ./pvezh.sh
         ```
-    -   **一键下载并执行 (如果脚本已托管)**: 如果脚本托管在某个 URL (例如 GitHub Gist 或仓库)，您可以使用 `wget` 命令直接下载、赋予权限并运行。请将 `[脚本的URL]` 替换为实际的脚本下载地址。
+    -   **一键下载并执行 (如果脚本已托管)**: 如果脚本托管在某个 URL (例如 GitHub Gist 或仓库)，您可以使用 `wget` 命令直接下载、赋予权限并运行。
         ```bash
         wget -O pvezh.sh https://raw.githubusercontent.com/chengege666/pvezh/main/pvezh.sh && chmod +x pvezh.sh && ./pvezh.sh
         ```
