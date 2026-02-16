@@ -65,6 +65,12 @@ if [ "$mode" == "1" ]; then
         [[ "$cpu_idx" == "2" ]] && vcpu="kvm64" || vcpu="host"
         read -p "[配置] 内存大小 MB (默认 512): " vmem; vmem=${vmem:-512}
         read -p "[配置] 网络桥接 (默认 vmbr0): " vbr; vbr=${vbr:-vmbr0}
+        
+        echo "  [1] i440fx (默认/兼容性好)"
+        echo "  [2] q35 (现代/支持 PCIe 直通)"
+        read -p "  请选择机型 (默认 1): " mach_idx; mach_idx=${mach_idx:-1}
+        [[ "$mach_idx" == "2" ]] && vmachine="q35" || vmachine="pc"
+
         read -p "[配置] 引导模式 [1] SeaBIOS [2] OVMF(UEFI) (默认 1): " v_bios; v_bios=${v_bios:-1}
         
         storage_list=($(pvesm status -content images | awk 'NR>1 {print $1}'))
@@ -73,13 +79,17 @@ if [ "$mode" == "1" ]; then
         read -p "请选择存储位置 (默认 1): " st_idx; st_idx=${st_idx:-1}
         vst=${storage_list[$(($st_idx-1))]}
 
-        echo -e "\n确认创建: VM $vmid ($vname), $vcores 核($vcpu), $vmem MB, 存储 $vst"
+        echo -e "\n====================================================="
+        echo "确认创建: VM $vmid ($vname)"
+        echo "配置: $vcores 核($vcpu), $vmem MB, 机型 $vmachine"
+        echo "引导: $([ "$v_bios" == "2" ] && echo "OVMF" || echo "SeaBIOS"), 存储 $vst"
+        echo "====================================================="
         read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
         echo -ne "[进度] 正在创建虚拟机... "
         bios_opt=""
         [[ "$v_bios" == "2" ]] && bios_opt="--bios ovmf"
-        qm create $vmid --name "$vname" --net0 virtio,bridge=$vbr --cores $vcores --memory $vmem --cpu $vcpu --ostype l26 $bios_opt >/dev/null 2>&1
+        qm create $vmid --name "$vname" --net0 virtio,bridge=$vbr --cores $vcores --memory $vmem --cpu $vcpu --machine $vmachine --ostype l26 $bios_opt >/dev/null 2>&1
         [[ "$v_bios" == "2" ]] && qm set $vmid --efidisk0 $vst:0 >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
     else
