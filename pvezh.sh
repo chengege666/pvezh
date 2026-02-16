@@ -72,6 +72,7 @@ if [ "$mode" == "1" ]; then
         read -p "  请选择 CPU 模式 (默认 1): " cpu_idx; cpu_idx=${cpu_idx:-1}
         [[ "$cpu_idx" == "2" ]] && vcpu="kvm64" || vcpu="host"
         read -p "[配置] 内存大小 MB (默认 512): " vmem; vmem=${vmem:-512}
+        read -p "[配置] 虚拟内存 Swap MB (注意: VM 需在系统内手动配置, 默认 0): " vswap; vswap=${vswap:-0}
         
         echo "  [1] i440fx (默认/兼容性好)"
         echo "  [2] q35 (现代/支持 PCIe 直通)"
@@ -92,18 +93,9 @@ if [ "$mode" == "1" ]; then
         read -p "请选择存储位置 (默认 1): " st_idx; st_idx=${st_idx:-1}
         vst=${storage_list[$(($st_idx-1))]}
 
-        echo -ne "[校验] 正在检查临时空间... "
-        tmp_free=$(df -m /tmp | awk 'NR==2 {print $4}')
-        file_size=$(du -m "$selected_file" | awk '{print $1}')
-        if [ "$tmp_free" -lt "$((file_size * 2))" ]; then
-            echo -e "${RED}警告: /tmp 空间可能不足${NC}"
-        else
-            echo -e "${GREEN}通过${NC}"
-        fi
-
         echo -e "\n====================================================="
         echo "确认创建: VM $vmid ($vname)"
-        echo "配置: $vcores 核($vcpu), $vmem MB, 机型 $vmachine"
+        echo "配置: $vcores 核($vcpu), $vmem MB (Swap: $vswap MB), 机型 $vmachine"
         echo "网络: $vbr0 $([ "$v_dual" == "y" ] && echo ", $vbr1"), 存储 $vst"
         echo "====================================================="
         read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
@@ -149,8 +141,14 @@ elif [ "$mode" == "2" ]; then
 
     read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
     read -p "[配置] 内存 MB (默认 512): " mem; mem=${mem:-512}
+    read -p "[配置] 虚拟内存 Swap MB (默认 512): " swap_val; swap_val=${swap_val:-512}
     read -p "[配置] 磁盘大小 (G, 默认 4): " dsize; dsize=${dsize:-4}
     read -p "[配置] 网络桥接 (默认 vmbr0): " br; br=${br:-vmbr0}
+
+    echo -e "\n[高级选项 - 推荐开启]"
+    read -p " [1] 开启 Nesting (支持 Docker) 与 TUN 设备访问? (y/n, 默认 y): " opt_nest; opt_nest=${opt_nest:-y}
+    read -p " [2] 自动配置公共 DNS (223.5.5.5, 119.29.29.29)? (y/n, 默认 y): " opt_dns; opt_dns=${opt_dns:-y}
+    read -p " [3] 激活 /etc/rc.local 执行权限? (y/n, 默认 y): " opt_rc; opt_rc=${opt_rc:-y}
 
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
     selected_storage=${storage_list[0]}
@@ -163,15 +161,12 @@ elif [ "$mode" == "2" ]; then
         mkdir -p "$tmp_mnt"
         [[ "$file_name" == *.gz ]] && zcat "$selected_file" > "$raw_img" || cp "$selected_file" "$raw_img"
         
-        echo "  -> 正在分析镜像分区结构..."
         loop_dev=$(losetup -fP --show "$raw_img")
-        echo "  -> [自动识别] 尝试挂载根分区..."
         if ! mount "${loop_dev}p2" "$tmp_mnt" >/dev/null 2>&1; then
             mount "${loop_dev}p1" "$tmp_mnt" >/dev/null 2>&1 || mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1
         fi
 
         final_tar="/var/lib/vz/template/cache/lxc_auto_$ctid.tar.gz"
-        echo "  -> 正在打包文件系统..."
         (cd "$tmp_mnt" && tar -czf "$final_tar" .)
         umount "$tmp_mnt" && losetup -d "$loop_dev" && rm -rf "$tmp_mnt" && rm -f "$raw_img"
         loop_dev=""
@@ -180,8 +175,33 @@ elif [ "$mode" == "2" ]; then
 
     echo -ne "[进度] 正在创建容器... "
     if pct create $ctid "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
-      --memory "$mem" --cores "$cores" --ostype unmanaged --unprivileged $unpriv --net0 name=eth0,bridge=$br,ip=manual >/dev/null 2>&1; then
-        echo -e "${GREEN}完成！${NC}"
+      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv --net0 name=eth0,bridge=$br,ip=manual >/dev/null 2>&1; then
+        echo -e "${GREEN}完成${NC}"
+        
+        if [ "$opt_nest" == "y" ]; then
+            echo -ne "[系统] 正在注入高级配置文件内容... "
+            echo "features: nesting=1" >> /etc/pve/lxc/$ctid.conf
+            echo "lxc.cgroup2.devices.allow: c 10:200 rwm" >> /etc/pve/lxc/$ctid.conf
+            echo -e "${GREEN}完成${NC}"
+        fi
+
+        if [ "$opt_dns" == "y" ] || [ "$opt_rc" == "y" ]; then
+            echo -ne "[系统] 正在进行内部文件优化... "
+            mp=$(pct mount $ctid)
+            if [ "$opt_dns" == "y" ]; then
+                rm -f "$mp/etc/resolv.conf"
+                cat <<EOF > "$mp/etc/resolv.conf"
+nameserver 223.5.5.5
+nameserver 119.29.29.29
+EOF
+            fi
+            if [ "$opt_rc" == "y" ] && [ -f "$mp/etc/rc.local" ]; then
+                chmod +x "$mp/etc/rc.local"
+            fi
+            pct unmount $ctid >/dev/null 2>&1
+            echo -e "${GREEN}完成${NC}"
+        fi
+        echo -e "\n>> 操作成功：LXC 容器 $ctid 已就绪。"
     else
         echo -e "${RED}失败！${NC}"
     fi
