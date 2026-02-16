@@ -1,6 +1,6 @@
+
 #!/bin/bash
 
-# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -12,7 +12,6 @@ echo "====================================================="
 echo -e "${BLUE}          PVE 镜像转换工具 (VM & LXC) ${NC}"
 echo "====================================================="
 
-# --- 1. 扫描并分类镜像文件 ---
 scan_dirs=("./" "/var/lib/vz/template/iso/" "/var/lib/vz/template/cache/")
 all_found=($(find "${scan_dirs[@]}" -maxdepth 1 -type f \( -name "*.img" -o -name "*.img.gz" -o -name "*.tar.gz" -o -name "*.tar.zst" -o -name "*.tar.xz" \) 2>/dev/null))
 
@@ -40,7 +39,6 @@ selected_file="${merged_files[$(($file_idx-1))]}"
 file_name=$(basename "$selected_file")
 echo -e ">> 已选择: ${GREEN}$file_name${NC}\n"
 
-# --- 2. 选择模式 ---
 suggest_mode=1
 [[ "$file_name" == *.tar* ]] && suggest_mode=2
 echo "请选择安装模式:"
@@ -49,7 +47,6 @@ echo " [2] 容器 (LXC)"
 read -p "您的选择 (默认 $suggest_mode): " mode
 mode=${mode:-$suggest_mode}
 
-# ==================== 模式 1: VM 模式 ====================
 if [ "$mode" == "1" ]; then
     echo -e ">> 进入 ${BLUE}[VM 虚拟机]${NC} 注入模式"
     qm list
@@ -64,15 +61,12 @@ if [ "$mode" == "1" ]; then
     echo -e "${GREEN}完成${NC}"
     [[ "$file_name" == *.gz ]] && rm -f "$temp_img"
 
-# ==================== 模式 2: LXC 模式 ====================
 elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     
-    # 交互配置 (增加了容器名称自定义)
     suggest_id=$(pvesh get /cluster/nextid)
     read -p "[配置] 请输入自定义容器 ID (留空则使用未使用的 ID): " ctid; ctid=${ctid:-$suggest_id}
     
-    # --- 新增：自定义容器名 ---
     read -p "[配置] 容器名称 (默认 OpenWrt-LXC): " cname; cname=${cname:-OpenWrt-LXC}
     
     read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
@@ -85,7 +79,6 @@ elif [ "$mode" == "2" ]; then
 
     final_tar="$selected_file"
 
-    # 第一阶段：如果选的是 .img，执行镜像处理
     if [[ "$file_name" == *.img || "$file_name" == *.img.gz ]]; then
         echo -e "${YELLOW}[第一阶段] 正在将 .img 转换为 LXC 模版...${NC}"
         raw_img="/tmp/lxc_raw_$ctid.img"
@@ -121,7 +114,6 @@ elif [ "$mode" == "2" ]; then
         echo -e "${GREEN}  -> 转换转换完成！${NC}"
     fi
 
-    # 第二阶段：创建容器
     echo -ne "[进度] 正在创建容器 $cname (ID: $ctid)... "
     if pct create $ctid "$final_tar" \
       --arch amd64 \
