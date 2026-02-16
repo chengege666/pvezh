@@ -158,3 +158,88 @@ if [ "$mode" == "1" ]; then
         zcat "$selected_file" > "$temp_img"
         import_img="$temp_img"
     else
+ import_img="$selected_file"
+    fi
+
+    if qm importdisk $vmid "$import_img" "$selected_storage" >/dev/null; then
+        disk_param="${diskif}0"
+        qm set $vmid --$disk_param "$selected_storage:vm-$vmid-disk-0" --boot order=${diskif}0 >/dev/null
+        echo -e "${GREEN}完成${NC}"
+    else
+        echo -e "${RED}导入失败${NC}"
+        [[ "$file_name" == *.gz ]] && rm -f "$temp_img"
+        exit 1
+    fi
+
+    [[ "$file_name" == *.gz ]] && rm -f "$temp_img"
+    echo -e "\n操作成功：虚拟机 ${BLUE}$vmid${NC} 已就绪。"
+
+elif [ "$mode" == "2" ]; then
+    echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
+    
+    suggest_id=$(pvesh get /cluster/nextid)
+    read -p "[配置] 请输入自定义容器 ID (留空则使用未使用的 ID): " ctid; ctid=${ctid:-$suggest_id}
+    
+    read -p "[配置] 容器名称 (默认 OpenWrt-LXC): " cname; cname=${cname:-OpenWrt-LXC}
+    
+    read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
+    read -p "[配置] 内存 MB (默认 512): " mem; mem=${mem:-512}
+    read -p "[配置] 磁盘大小 (G, 默认 4): " dsize; dsize=${dsize:-4}
+    read -p "[配置] 网络桥接 (默认 vmbr0): " br; br=${br:-vmbr0}
+
+    storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
+    selected_storage=${storage_list[0]}
+
+    final_tar="$selected_file"
+
+    if [[ "$file_name" == *.img || "$file_name" == *.img.gz ]]; then
+        echo -e "${YELLOW}[第一阶段] 正在将 .img 转换为 LXC 模版...${NC}"
+        raw_img="/tmp/lxc_raw_$ctid.img"
+        tmp_mnt="/mnt/lxc_mnt_$ctid"
+        mkdir -p "$tmp_mnt"
+
+        if [[ "$file_name" == *.gz ]]; then
+            echo "  -> 正在解压镜像..."
+            zcat "$selected_file" > "$raw_img"
+        else
+            raw_img="$selected_file"
+        fi
+
+        echo "  -> 正在通过回环设备挂载..."
+        loop_dev=$(losetup -fP --show "$raw_img")
+        
+        echo "  -> 正在尝试挂载分区..."
+        if ! mount "${loop_dev}p2" "$tmp_mnt" >/dev/null 2>&1; then
+            mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1
+        fi
+
+        final_tar="/var/lib/vz/template/cache/lxc_auto_$ctid.tar.gz"
+        echo "  -> 正在打包文件系统到 $final_tar ..."
+        cd "$tmp_mnt" || exit
+        tar -czf "$final_tar" .
+        cd - >/dev/null || exit
+
+        echo "  -> 正在清理转换环境..."
+        umount "$tmp_mnt"
+        losetup -d "$loop_dev"
+        rm -rf "$tmp_mnt"
+        [[ "$file_name" == *.gz ]] && rm -f "$raw_img"
+        echo -e "${GREEN}  -> 转换转换完成！${NC}"
+    fi
+
+    echo -ne "[进度] 正在创建容器 $cname (ID: $ctid)... "
+    if pct create $ctid "$final_tar" \
+      --arch amd64 \
+      --hostname "$cname" \
+      --rootfs "$selected_storage:$dsize" \
+      --memory "$mem" \
+      --cores "$cores" \
+      --ostype unmanaged \
+      --unprivileged 1 \
+      --net0 name=eth0,bridge=$br,ip=manual >/dev/null 2>&1; then
+        echo -e "${GREEN}完成！${NC}"
+        echo -e "\n操作成功：容器已创建，名称为 ${BLUE}$cname${NC}。"
+    else
+        echo -e "${RED}失败！${NC}"
+    fi
+fi
