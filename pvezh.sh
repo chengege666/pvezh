@@ -18,7 +18,7 @@ trap cleanup EXIT
 
 clear
 echo "====================================================="
-echo -e "${BLUE}          PVE 镜像转换工具 (已修正空间路径) ${NC}"
+echo -e "${BLUE}          PVE 镜像转换工具  ${NC}"
 echo "====================================================="
 
 scan_dirs=("./" "/var/lib/vz/template/iso/" "/var/lib/vz/template/cache/")
