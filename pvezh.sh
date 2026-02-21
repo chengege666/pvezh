@@ -6,17 +6,19 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# 修改后的清理函数，确保清理 /var/tmp 下的残留
 cleanup() {
     [ -d "$tmp_mnt" ] && umount "$tmp_mnt" 2>/dev/null
     [ -n "$loop_dev" ] && losetup -d "$loop_dev" 2>/dev/null
     [ -d "$tmp_mnt" ] && rm -rf "$tmp_mnt"
     [ -f "$raw_img" ] && rm -f "$raw_img"
+    [ -f "$temp_img" ] && rm -f "$temp_img"
 }
 trap cleanup EXIT
 
 clear
 echo "====================================================="
-echo -e "${BLUE}          PVE 镜像转换工具 (VM & LXC) ${NC}"
+echo -e "${BLUE}          PVE 镜像转换工具 (已修正空间路径) ${NC}"
 echo "====================================================="
 
 scan_dirs=("./" "/var/lib/vz/template/iso/" "/var/lib/vz/template/cache/")
@@ -72,7 +74,7 @@ if [ "$mode" == "1" ]; then
         read -p "  请选择 CPU 模式 (默认 1): " cpu_idx; cpu_idx=${cpu_idx:-1}
         [[ "$cpu_idx" == "2" ]] && vcpu="kvm64" || vcpu="host"
         read -p "[配置] 内存大小 MB (默认 512): " vmem; vmem=${vmem:-512}
-        read -p "[配置] 虚拟内存 Swap MB (注意: VM 需在系统内手动配置, 默认 0): " vswap; vswap=${vswap:-0}
+        read -p "[配置] 虚拟内存 Swap MB (默认 0): " vswap; vswap=${vswap:-0}
         
         echo "  [1] i440fx (默认/兼容性好)"
         echo "  [2] q35 (现代/支持 PCIe 直通)"
@@ -95,8 +97,7 @@ if [ "$mode" == "1" ]; then
 
         echo -e "\n====================================================="
         echo "确认创建: VM $vmid ($vname)"
-        echo "配置: $vcores 核($vcpu), $vmem MB (Swap: $vswap MB), 机型 $vmachine"
-        echo "网络: $vbr0 $([ "$v_dual" == "y" ] && echo ", $vbr1"), 存储 $vst"
+        echo "配置: $vcores 核($vcpu), $vmem MB, 存储 $vst"
         echo "====================================================="
         read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
@@ -115,17 +116,34 @@ if [ "$mode" == "1" ]; then
         v_ssd="n"
     fi
 
-    temp_img="/tmp/imp_$vmid.img"
+    # 【关键修改】使用 /var/tmp 替代 /tmp
+    temp_img="/var/tmp/imp_$vmid.img"
     echo -ne "[进度] 正在解压并处理磁盘镜像... "
-    [[ "$file_name" == *.gz ]] && zcat "$selected_file" > "$temp_img" || cp "$selected_file" "$temp_img"
+    if [[ "$file_name" == *.gz ]]; then
+        zcat "$selected_file" > "$temp_img" 2>/dev/null
+    else
+        cp "$selected_file" "$temp_img" 2>/dev/null
+    fi
+
+    # 检查上一步是否成功
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
+        cleanup
+        exit 1
+    fi
     echo -e "${GREEN}完成${NC}"
 
     echo -ne "[进度] 正在注入磁盘并应用特性... "
-    qm importdisk $vmid "$temp_img" "$vst" >/dev/null 2>&1
-    disk_params="$vst:vm-$vmid-disk-0"
-    [ "$v_ssd" == "y" ] && disk_params="$disk_params,discard=on,ssd=1"
-    qm set $vmid --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
-    echo -e "${GREEN}完成${NC}"
+    if qm importdisk $vmid "$temp_img" "$vst" >/dev/null 2>&1; then
+        disk_params="$vst:vm-$vmid-disk-0"
+        [ "$v_ssd" == "y" ] && disk_params="$disk_params,discard=on,ssd=1"
+        qm set $vmid --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
+        echo -e "${GREEN}完成${NC}"
+    else
+        echo -e "${RED}失败！无法将磁盘导入到存储 $vst。${NC}"
+        exit 1
+    fi
+    
     rm -f "$temp_img"
     echo -e ">> 操作成功：VM $vmid 已就绪。"
 
@@ -145,21 +163,27 @@ elif [ "$mode" == "2" ]; then
     read -p "[配置] 磁盘大小 (G, 默认 4): " dsize; dsize=${dsize:-4}
     read -p "[配置] 网络桥接 (默认 vmbr0): " br; br=${br:-vmbr0}
 
-    echo -e "\n[高级选项 - 推荐开启]"
-    read -p " [1] 开启 Nesting (支持 Docker) 与 TUN 设备访问? (y/n, 默认 y): " opt_nest; opt_nest=${opt_nest:-y}
-    read -p " [2] 自动配置公共 DNS (223.5.5.5, 119.29.29.29)? (y/n, 默认 y): " opt_dns; opt_dns=${opt_dns:-y}
-    read -p " [3] 激活 /etc/rc.local 执行权限? (y/n, 默认 y): " opt_rc; opt_rc=${opt_rc:-y}
-
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
     selected_storage=${storage_list[0]}
 
     final_tar="$selected_file"
     if [[ "$file_name" == *.img || "$file_name" == *.img.gz ]]; then
         echo -e "${YELLOW}[第一阶段] 正在将 .img 转换为 LXC 模版...${NC}"
-        raw_img="/tmp/lxc_raw_$ctid.img"
-        tmp_mnt="/mnt/lxc_mnt_$ctid"
+        # 【关键修改】使用 /var/tmp 替代 /tmp
+        raw_img="/var/tmp/lxc_raw_$ctid.img"
+        tmp_mnt="/var/tmp/lxc_mnt_$ctid"
         mkdir -p "$tmp_mnt"
-        [[ "$file_name" == *.gz ]] && zcat "$selected_file" > "$raw_img" || cp "$selected_file" "$raw_img"
+        
+        if [[ "$file_name" == *.gz ]]; then
+            zcat "$selected_file" > "$raw_img" 2>/dev/null
+        else
+            cp "$selected_file" "$raw_img" 2>/dev/null
+        fi
+
+        if [ $? -ne 0 ]; then
+             echo -e "${RED}转换失败：磁盘空间不足。${NC}"
+             exit 1
+        fi
         
         loop_dev=$(losetup -fP --show "$raw_img")
         if ! mount "${loop_dev}p2" "$tmp_mnt" >/dev/null 2>&1; then
@@ -177,30 +201,6 @@ elif [ "$mode" == "2" ]; then
     if pct create $ctid "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
       --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv --net0 name=eth0,bridge=$br,ip=manual >/dev/null 2>&1; then
         echo -e "${GREEN}完成${NC}"
-        
-        if [ "$opt_nest" == "y" ]; then
-            echo -ne "[系统] 正在注入高级配置文件内容... "
-            echo "features: nesting=1" >> /etc/pve/lxc/$ctid.conf
-            echo "lxc.cgroup2.devices.allow: c 10:200 rwm" >> /etc/pve/lxc/$ctid.conf
-            echo -e "${GREEN}完成${NC}"
-        fi
-
-        if [ "$opt_dns" == "y" ] || [ "$opt_rc" == "y" ]; then
-            echo -ne "[系统] 正在进行内部文件优化... "
-            mp=$(pct mount $ctid)
-            if [ "$opt_dns" == "y" ]; then
-                rm -f "$mp/etc/resolv.conf"
-                cat <<EOF > "$mp/etc/resolv.conf"
-nameserver 223.5.5.5
-nameserver 119.29.29.29
-EOF
-            fi
-            if [ "$opt_rc" == "y" ] && [ -f "$mp/etc/rc.local" ]; then
-                chmod +x "$mp/etc/rc.local"
-            fi
-            pct unmount $ctid >/dev/null 2>&1
-            echo -e "${GREEN}完成${NC}"
-        fi
         echo -e "\n>> 操作成功：LXC 容器 $ctid 已就绪。"
     else
         echo -e "${RED}失败！${NC}"
