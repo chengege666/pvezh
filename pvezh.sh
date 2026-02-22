@@ -162,6 +162,11 @@ elif [ "$mode" == "2" ]; then
     read -p "[配置] 虚拟内存 Swap MB (默认 512): " swap_val; swap_val=${swap_val:-512}
     read -p "[配置] 磁盘大小 (G, 默认 4): " dsize; dsize=${dsize:-4}
     read -p "[配置] 网络桥接 (默认 vmbr0): " br; br=${br:-vmbr0}
+    
+    echo -e "--- 高级选项 ---"
+    read -p "[配置] 开启 Nesting 虚拟化 (y/n, 默认 y): " nesting; nesting=${nesting:-y}
+    read -p "[配置] 激活 /etc/rc.local 执行权限? (y/n, 默认 y): " opt_rc; opt_rc=${opt_rc:-y}
+    read -p "[配置] 自定义 DNS (留空使用宿主机): " dns_server
 
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
     selected_storage=${storage_list[0]}
@@ -190,6 +195,12 @@ elif [ "$mode" == "2" ]; then
             mount "${loop_dev}p1" "$tmp_mnt" >/dev/null 2>&1 || mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1
         fi
 
+        # 处理 rc.local 权限
+        if [ "$opt_rc" == "y" ] && [ -f "$tmp_mnt/etc/rc.local" ]; then
+            chmod +x "$tmp_mnt/etc/rc.local"
+            echo -e "  -> 已激活 /etc/rc.local"
+        fi
+
         final_tar="/var/lib/vz/template/cache/lxc_auto_$ctid.tar.gz"
         (cd "$tmp_mnt" && tar -czf "$final_tar" .)
         umount "$tmp_mnt" && losetup -d "$loop_dev" && rm -rf "$tmp_mnt" && rm -f "$raw_img"
@@ -198,8 +209,15 @@ elif [ "$mode" == "2" ]; then
     fi
 
     echo -ne "[进度] 正在创建容器... "
+    
+    # 构建 LXC 额外参数
+    extra_opts=""
+    [ "$nesting" == "y" ] && extra_opts="--features nesting=1"
+    [ -n "$dns_server" ] && extra_opts="$extra_opts --nameserver $dns_server"
+
     if pct create $ctid "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
-      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv --net0 name=eth0,bridge=$br,ip=manual >/dev/null 2>&1; then
+      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv \
+      --net0 name=eth0,bridge=$br,ip=manual $extra_opts >/dev/null 2>&1; then
         echo -e "${GREEN}完成${NC}"
         echo -e "\n>> 操作成功：LXC 容器 $ctid 已就绪。"
     else
