@@ -69,9 +69,12 @@ if [ "$mode" == "1" ]; then
         read -p "[配置] 请输入新虚拟机 ID: " vmid; vmid=${vmid:-$suggest_id}
         echo "  [1] openwrt-VM (默认)"
         echo "  [2] immortalwrt-VM"
+        echo "  [3] 自定义名称"
         read -p "[配置] 虚拟机名称选择 (默认 1): " vname_idx; vname_idx=${vname_idx:-1}
         if [ "$vname_idx" == "2" ]; then
             vname="immortalwrt-VM"
+        elif [ "$vname_idx" == "3" ]; then
+            read -p "[配置] 请输入自定义虚拟机名称: " vname
         else
             vname="openwrt-VM"
         fi
