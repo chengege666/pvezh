@@ -7,7 +7,11 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# 修改后的清理函数，确保清理 /var/tmp 下的残留
+tmp_mnt=""
+loop_dev=""
+raw_img=""
+temp_img=""
+
 cleanup() {
     [ -d "$tmp_mnt" ] && umount "$tmp_mnt" 2>/dev/null
     [ -n "$loop_dev" ] && losetup -d "$loop_dev" 2>/dev/null
