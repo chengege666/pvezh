@@ -170,13 +170,21 @@ if [ "$mode" == "1" ]; then
     echo -e "${GREEN}完成${NC}"
 
     echo -ne "[进度] 正在注入磁盘并应用特性... "
-    if qm importdisk $vmid "$temp_img" "$vst" >/dev/null 2>&1; then
+    import_err=$(qm importdisk $vmid "$temp_img" "$vst" 2>&1)
+    if [ $? -eq 0 ]; then
         disk_params="$vst:vm-$vmid-disk-0"
         [ "$v_ssd" == "y" ] && disk_params="$disk_params,discard=on,ssd=1"
         qm set $vmid --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
     else
-        echo -e "${RED}失败！无法将磁盘导入到存储 $vst。${NC}"
+        echo -e "${RED}失败！${NC}"
+        echo -e "${YELLOW}原因:${NC} $import_err"
+        echo ""
+        echo -e "可能的原因与排查:"
+        echo -e "  1. ${YELLOW}存储空间不足${NC}: 检查 \"pvesm status\" 确认 $vst 有足够空间"
+        echo -e "  2. ${YELLOW}临时文件位置不受支持${NC}: 可将镜像先复制到 \"$vst\" 存储的目录下重试"
+        echo -e "  3. ${YELLOW}VM 状态冲突${NC}: 确保 VM $vmid 未运行 (qm status $vmid)"
+        echo -e "  4. ${YELLOW}镜像损坏${NC}: 临时文件保留在 $temp_img 可手动排查"
         exit 1
     fi
 
