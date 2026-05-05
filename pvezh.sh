@@ -131,7 +131,12 @@ if [ "$mode" == "1" ]; then
         echo -ne "[进度] 正在创建虚拟机并配置网口... "
         bios_opt=""
         [[ "$v_bios" == "2" ]] && bios_opt="--bios ovmf"
-        qm create $vmid --name "$vname" --net0 virtio,bridge=$vbr0 --cores $vcores --memory $vmem --swap "$vswap" --cpu $vcpu --machine $vmachine --ostype l26 $bios_opt >/dev/null 2>&1
+        create_err=$(qm create $vmid --name "$vname" --net0 virtio,bridge=$vbr0 --cores $vcores --memory $vmem --swap "$vswap" --cpu $vcpu --machine $vmachine --ostype l26 $bios_opt 2>&1)
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}失败！${NC}"
+            echo -e "${YELLOW}原因:${NC} $create_err"
+            exit 1
+        fi
         [ "$v_dual" == "y" ] && qm set $vmid --net1 virtio,bridge=$vbr1 >/dev/null 2>&1
         [[ "$v_bios" == "2" ]] && qm set $vmid --efidisk0 $vst:0 >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
