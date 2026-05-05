@@ -67,16 +67,16 @@ if [ "$mode" == "1" ]; then
 
     if [ "$vm_op" == "1" ]; then
         read -p "[配置] 请输入新虚拟机 ID: " vmid; vmid=${vmid:-$suggest_id}
-        echo "  [1] openwrt-VM (默认)"
-        echo "  [2] immortalwrt-VM"
+        echo "  [1] OpenWRT-VM (默认)"
+        echo "  [2] ImmortalWRT-VM"
         echo "  [3] 自定义名称"
         read -p "[配置] 虚拟机名称选择 (默认 1): " vname_idx; vname_idx=${vname_idx:-1}
         if [ "$vname_idx" == "2" ]; then
-            vname="immortalwrt-VM"
+            vname="ImmortalWRT-VM"
         elif [ "$vname_idx" == "3" ]; then
             read -p "[配置] 请输入自定义虚拟机名称: " vname
         else
-            vname="openwrt-VM"
+            vname="OpenWRT-VM"
         fi
         read -p "[配置] CPU 核心数 (默认 1): " vcores; vcores=${vcores:-1}
         echo "  [1] host (物理机直通)"
@@ -160,16 +160,16 @@ if [ "$mode" == "1" ]; then
 elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     read -p "[配置] 容器 ID: " ctid; ctid=${ctid:-$suggest_id}
-    echo " [1] openwrt-LXC (默认)"
-    echo " [2] immortalwrt-LXC"
+    echo " [1] OpenWRT-LXC (默认)"
+    echo " [2] ImmortalWRT-LXC"
     echo " [3] 自定义名称"
     read -p "[配置] 容器名称选择 (默认 1): " cname_idx; cname_idx=${cname_idx:-1}
     if [ "$cname_idx" == "2" ]; then
-        cname="immortalwrt-LXC"
+        cname="ImmortalWRT-LXC"
     elif [ "$cname_idx" == "3" ]; then
         read -p "[配置] 请输入自定义容器名称: " cname
     else
-        cname="openwrt-LXC"
+        cname="OpenWRT-LXC"
     fi
     
     echo " [1] 非特权 (更安全, 默认)"
