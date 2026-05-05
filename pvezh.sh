@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,6 +45,10 @@ echo "====================================================="
 
 read -p "请选择镜像编号 (默认 1): " file_idx
 file_idx=${file_idx:-1}
+if ! [[ "$file_idx" =~ ^[0-9]+$ ]] || [ "$file_idx" -lt 1 ] || [ "$file_idx" -gt ${#merged_files[@]} ]; then
+    echo -e "${RED}[错误] 无效的镜像编号: $file_idx${NC}"
+    exit 1
+fi
 selected_file="${merged_files[$(($file_idx-1))]}"
 file_name=$(basename "$selected_file")
 echo -e ">> 已选择: ${GREEN}$file_name${NC}\n"
@@ -56,7 +61,7 @@ echo " [2] 容器 (LXC)"
 read -p "您的选择 (默认 $suggest_mode): " mode
 mode=${mode:-$suggest_mode}
 
-suggest_id=$(pvesh get /cluster/nextid)
+suggest_id=$(pvesh get /cluster/nextid 2>/dev/null || echo "100")
 
 if [ "$mode" == "1" ]; then
     echo -e ">> 进入 ${BLUE}[VM 虚拟机]${NC} 模式"
@@ -114,40 +119,45 @@ if [ "$mode" == "1" ]; then
         echo -ne "[进度] 正在创建虚拟机并配置网口... "
         bios_opt=""
         [[ "$v_bios" == "2" ]] && bios_opt="--bios ovmf"
-        qm create $vmid --name "$vname" --net0 virtio,bridge=$vbr0 --cores $vcores --memory $vmem --cpu $vcpu --machine $vmachine --ostype l26 $bios_opt >/dev/null 2>&1
-        [ "$v_dual" == "y" ] && qm set $vmid --net1 virtio,bridge=$vbr1 >/dev/null 2>&1
-        [[ "$v_bios" == "2" ]] && qm set $vmid --efidisk0 $vst:0 >/dev/null 2>&1
+        qm create "$vmid" --name "$vname" --net0 virtio,bridge="$vbr0" --cores "$vcores" --memory "$vmem" --cpu "$vcpu" --machine "$vmachine" --ostype l26 $bios_opt >/dev/null 2>&1
+        [ "$v_dual" == "y" ] && qm set "$vmid" --net1 virtio,bridge="$vbr1" >/dev/null 2>&1
+        [[ "$v_bios" == "2" ]] && qm set "$vmid" --efidisk0 "$vst:0" >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
     else
         qm list
         read -p "请输入目标 VM ID: " vmid
         storage_list=($(pvesm status -content images | awk 'NR>1 {print $1}'))
+        if [ ${#storage_list[@]} -eq 0 ]; then
+            echo -e "${RED}[错误] 未找到可用存储。${NC}"
+            exit 1
+        fi
         vst=${storage_list[0]}
-        v_ssd="n"
+        read -p "[高级] 是否开启 SSD 仿真与 Discard 优化? (y/n, 默认 y): " v_ssd; v_ssd=${v_ssd:-y}
     fi
 
     # 【关键修改】使用 /var/tmp 替代 /tmp
     temp_img="/var/tmp/imp_$vmid.img"
     echo -ne "[进度] 正在解压并处理磁盘镜像... "
     if [[ "$file_name" == *.gz ]]; then
-        zcat "$selected_file" > "$temp_img" 2>/dev/null
+        if ! zcat "$selected_file" > "$temp_img" 2>&1; then
+            echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
+            cleanup
+            exit 1
+        fi
     else
-        cp "$selected_file" "$temp_img" 2>/dev/null
-    fi
-
-    # 检查上一步是否成功
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
-        cleanup
-        exit 1
+        if ! cp "$selected_file" "$temp_img" 2>&1; then
+            echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
+            cleanup
+            exit 1
+        fi
     fi
     echo -e "${GREEN}完成${NC}"
 
     echo -ne "[进度] 正在注入磁盘并应用特性... "
-    if qm importdisk $vmid "$temp_img" "$vst" >/dev/null 2>&1; then
+    if qm importdisk "$vmid" "$temp_img" "$vst" >/dev/null 2>&1; then
         disk_params="$vst:vm-$vmid-disk-0"
         [ "$v_ssd" == "y" ] && disk_params="$disk_params,discard=on,ssd=1"
-        qm set $vmid --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
+        qm set "$vmid" --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
     else
         echo -e "${RED}失败！无法将磁盘导入到存储 $vst。${NC}"
@@ -189,6 +199,10 @@ elif [ "$mode" == "2" ]; then
     read -p "[配置] 自定义 DNS (留空使用宿主机): " dns_server
 
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
+    if [ ${#storage_list[@]} -eq 0 ]; then
+        echo -e "${RED}[错误] 未找到可用存储。${NC}"
+        exit 1
+    fi
     selected_storage=${storage_list[0]}
 
     final_tar="$selected_file"
@@ -200,19 +214,33 @@ elif [ "$mode" == "2" ]; then
         mkdir -p "$tmp_mnt"
         
         if [[ "$file_name" == *.gz ]]; then
-            zcat "$selected_file" > "$raw_img" 2>/dev/null
+            if ! zcat "$selected_file" > "$raw_img" 2>&1; then
+                echo -e "${RED}转换失败：磁盘空间不足。${NC}"
+                cleanup
+                exit 1
+            fi
         else
-            cp "$selected_file" "$raw_img" 2>/dev/null
-        fi
-
-        if [ $? -ne 0 ]; then
-             echo -e "${RED}转换失败：磁盘空间不足。${NC}"
-             exit 1
+            if ! cp "$selected_file" "$raw_img" 2>&1; then
+                echo -e "${RED}转换失败：磁盘空间不足。${NC}"
+                cleanup
+                exit 1
+            fi
         fi
         
-        loop_dev=$(losetup -fP --show "$raw_img")
+        loop_dev=$(losetup -fP --show "$raw_img" 2>/dev/null || true)
+        if [ -z "$loop_dev" ]; then
+            echo -e "${RED}转换失败：无法创建 loop 设备。${NC}"
+            cleanup
+            exit 1
+        fi
         if ! mount "${loop_dev}p2" "$tmp_mnt" >/dev/null 2>&1; then
-            mount "${loop_dev}p1" "$tmp_mnt" >/dev/null 2>&1 || mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1
+            if ! mount "${loop_dev}p1" "$tmp_mnt" >/dev/null 2>&1; then
+                if ! mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1; then
+                    echo -e "${RED}转换失败：无法挂载镜像分区。${NC}"
+                    cleanup
+                    exit 1
+                fi
+            fi
         fi
 
         # 处理 rc.local 权限
@@ -222,7 +250,11 @@ elif [ "$mode" == "2" ]; then
         fi
 
         final_tar="/var/lib/vz/template/cache/lxc_auto_$ctid.tar.gz"
-        (cd "$tmp_mnt" && tar -czf "$final_tar" .)
+        if ! (cd "$tmp_mnt" && tar -czf "$final_tar" .); then
+            echo -e "${RED}转换失败：tar 打包出错。${NC}"
+            cleanup
+            exit 1
+        fi
         umount "$tmp_mnt" && losetup -d "$loop_dev" && rm -rf "$tmp_mnt" && rm -f "$raw_img"
         loop_dev=""
         echo -e "${GREEN}  -> 转换完成！${NC}"
@@ -235,12 +267,12 @@ elif [ "$mode" == "2" ]; then
     [ "$nesting" == "y" ] && extra_opts="--features nesting=1"
     [ -n "$dns_server" ] && extra_opts="$extra_opts --nameserver $dns_server"
 
-    if pct create $ctid "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
-      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv \
-      --net0 name=eth0,bridge=$br,ip=manual $extra_opts >/dev/null 2>&1; then
+    if pct create "$ctid" "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
+      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged "$unpriv" \
+      --net0 name=eth0,bridge="$br",ip=manual $extra_opts >/dev/null 2>&1; then
         echo -e "${GREEN}完成${NC}"
         echo -e "\n>> 操作成功：LXC 容器 $ctid 已就绪。"
     else
-        echo -e "${RED}失败！${NC}"
+        echo -e "${RED}失败！请检查容器配置或模版是否完整。${NC}"
     fi
 fi
