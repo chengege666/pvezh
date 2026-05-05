@@ -95,10 +95,14 @@ if [ "$mode" == "1" ]; then
         echo "  [2] q35 (现代/支持 PCIe 直通)"
         read -p "  请选择机型 (默认 1): " mach_idx; mach_idx=${mach_idx:-1}
         [[ "$mach_idx" == "2" ]] && vmachine="q35" || vmachine="pc"
+        [[ "$mach_idx" == "2" ]] && vmachine_label="q35" || vmachine_label="i440fx (pc)"
 
         read -p "[配置] 引导模式 [1] SeaBIOS [2] OVMF(UEFI) (默认 1): " v_bios; v_bios=${v_bios:-1}
+        [[ "$v_bios" == "2" ]] && bios_label="OVMF (UEFI)" || bios_label="SeaBIOS"
         read -p "[高级] 是否开启 SSD 仿真与 Discard 优化? (y/n, 默认 y): " v_ssd; v_ssd=${v_ssd:-y}
+        [[ "$v_ssd" == "y" ]] && ssd_label="开启" || ssd_label="关闭"
         read -p "[高级] 是否需要配置双网口 (WAN+LAN)? (y/n, 默认 n): " v_dual; v_dual=${v_dual:-n}
+        [[ "$v_dual" == "y" ]] && dual_label="开启" || dual_label="关闭"
         read -p "  -> 网口 1 (eth0) 桥接至 (默认 vmbr0): " vbr0; vbr0=${vbr0:-vmbr0}
         if [ "$v_dual" == "y" ]; then
             read -p "  -> 网口 2 (eth1) 桥接至 (默认 vmbr1): " vbr1; vbr1=${vbr1:-vmbr1}
@@ -111,9 +115,23 @@ if [ "$mode" == "1" ]; then
         vst=${storage_list[$(($st_idx-1))]}
 
         echo -e "\n====================================================="
-        echo "确认创建: VM $vmid ($vname)"
-        echo "配置: $vcores 核($vcpu), $vmem MB, 存储 $vst"
-        echo "====================================================="
+        echo -e "确认创建配置"
+        echo -e "====================================================="
+        echo -e " 虚拟机 ID   : $vmid"
+        echo -e " 虚拟机名称  : $vname"
+        echo -e " CPU         : $vcores 核 ($vcpu)"
+        echo -e " 内存        : $vmem MB"
+        echo -e " Swap        : $vswap MB"
+        echo -e " 机型        : $vmachine_label"
+        echo -e " 引导模式    : $bios_label"
+        echo -e " SSD 优化    : $ssd_label"
+        echo -e " 双网口      : $dual_label"
+        echo -e " 网口 1      : $vbr0"
+        if [ "$v_dual" == "y" ]; then
+            echo -e " 网口 2      : $vbr1"
+        fi
+        echo -e " 存储位置    : $vst"
+        echo -e "====================================================="
         read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
         echo -ne "[进度] 正在创建虚拟机并配置网口... "
@@ -186,6 +204,7 @@ elif [ "$mode" == "2" ]; then
     echo " [2] 特权 (支持拨号/硬件直接访问)"
     read -p "权限 模式选择 (默认 1): " priv_idx; priv_idx=${priv_idx:-1}
     [[ "$priv_idx" == "2" ]] && unpriv=0 || unpriv=1
+    [[ "$priv_idx" == "2" ]] && priv_label="特权" || priv_label="非特权"
 
     read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
     read -p "[配置] 内存 MB (默认 512): " mem; mem=${mem:-512}
@@ -195,8 +214,11 @@ elif [ "$mode" == "2" ]; then
     
     echo -e "--- 高级选项 ---"
     read -p "[配置] 开启 Nesting 虚拟化 (y/n, 默认 y): " nesting; nesting=${nesting:-y}
+    [[ "$nesting" == "y" ]] && nesting_label="开启" || nesting_label="关闭"
     read -p "[配置] 激活 /etc/rc.local 执行权限? (y/n, 默认 y): " opt_rc; opt_rc=${opt_rc:-y}
+    [[ "$opt_rc" == "y" ]] && rc_label="开启" || rc_label="关闭"
     read -p "[配置] 自定义 DNS (留空使用宿主机): " dns_server
+    [ -n "$dns_server" ] && dns_label="$dns_server" || dns_label="(使用宿主机)"
 
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
     if [ ${#storage_list[@]} -eq 0 ]; then
@@ -259,6 +281,24 @@ elif [ "$mode" == "2" ]; then
         loop_dev=""
         echo -e "${GREEN}  -> 转换完成！${NC}"
     fi
+
+    echo -e "\n====================================================="
+    echo -e "确认创建配置"
+    echo -e "====================================================="
+    echo -e " 容器 ID     : $ctid"
+    echo -e " 容器名称    : $cname"
+    echo -e " 权限模式    : $priv_label"
+    echo -e " CPU         : $cores 核"
+    echo -e " 内存        : $mem MB"
+    echo -e " Swap        : $swap_val MB"
+    echo -e " 磁盘大小    : $dsize G"
+    echo -e " 网络桥接    : $br"
+    echo -e " Nesting     : $nesting_label"
+    echo -e " rc.local    : $rc_label"
+    echo -e " 自定义 DNS  : $dns_label"
+    echo -e " 存储位置    : $selected_storage"
+    echo -e "====================================================="
+    read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
     echo -ne "[进度] 正在创建容器... "
     
