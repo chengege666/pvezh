@@ -176,13 +176,14 @@ if [ "$mode" == "1" ]; then
     echo -e "${GREEN}完成${NC}"
 
     echo -ne "[进度] 正在注入磁盘并应用特性... "
-    if qm importdisk "$vmid" "$temp_img" "$vst" >/dev/null 2>&1; then
-        disk_params="$vst:vm-$vmid-disk-0"
-        [ "$v_ssd" == "y" ] && disk_params="$disk_params,discard=on,ssd=1"
-        qm set "$vmid" --scsihw virtio-scsi-pci --scsi0 "$disk_params" --boot order=scsi0 >/dev/null 2>&1
+    import_output=$(qm importdisk "$vmid" "$temp_img" "$vst" 2>&1)
+    if echo "$import_output" | grep -q "Successfully imported"; then
+        disk_id=$(echo "$import_output" | grep -oP "as\s+'\K[^']+")
+        [ "$v_ssd" == "y" ] && disk_id="$disk_id,discard=on,ssd=1"
+        qm set "$vmid" --scsihw virtio-scsi-pci --scsi0 "$disk_id" --boot order=scsi0 >/dev/null 2>&1
         echo -e "${GREEN}完成${NC}"
     else
-        echo -e "${RED}失败！无法将磁盘导入到存储 $vst。${NC}"
+        echo -e "${RED}失败！$(echo "$import_output" | head -1)${NC}"
         exit 1
     fi
     
