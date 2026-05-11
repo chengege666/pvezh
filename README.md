@@ -20,7 +20,7 @@
 ## 使用方法
 ## 短链接
 ```bash
-bash <(curl -sL https://lj.1231818.xyz/pvezh)
+     bash <(curl -sL https://lj.1231818.xyz/pvezh)
   ```
 1.  **上传脚本**: 将 `pvezh.sh` 脚本上传到 PVE 主机，例如您的家目录。
 2.  **赋予执行权限并运行**:
