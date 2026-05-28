@@ -27,7 +27,7 @@ echo -e "${BLUE}          PVE 镜像转换工具  ${NC}"
 echo "====================================================="
 
 scan_dirs=("./" "/var/lib/vz/template/iso/" "/var/lib/vz/template/cache/")
-all_found=($(find "${scan_dirs[@]}" -maxdepth 1 -type f \( -name "*.img" -o -name "*.img.gz" -o -name "*.tar.gz" -o -name "*.tar.zst" -o -name "*.tar.xz" \) 2>/dev/null))
+all_found=($(find "${scan_dirs[@]}" -maxdepth 1 -type f \( -name "*.img" -o -name "*.img.gz" -o -name "*.tar.gz" -o -name "*.tar.zst" -o -name "*.tar.xz" \) -exec stat -c '%i %n' {} \; 2>/dev/null | sort -u -k1,1 | cut -d' ' -f2-))
 
 if [ ${#all_found[@]} -eq 0 ]; then
     echo -e "${RED}[错误] 未找到任何可用镜像文件。${NC}"
