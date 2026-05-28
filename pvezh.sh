@@ -162,9 +162,12 @@ elif [ "$mode" == "2" ]; then
     read -p "[配置] 容器 ID: " ctid; ctid=${ctid:-$suggest_id}
     echo " [1] openwrt-LXC (默认)"
     echo " [2] immortalwrt-LXC"
+    echo " [3] 自定义名称"
     read -p "[配置] 容器名称选择 (默认 1): " cname_idx; cname_idx=${cname_idx:-1}
     if [ "$cname_idx" == "2" ]; then
         cname="immortalwrt-LXC"
+    elif [ "$cname_idx" == "3" ]; then
+        read -p "[配置] 请输入自定义容器名称: " cname
     else
         cname="openwrt-LXC"
     fi
