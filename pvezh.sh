@@ -90,8 +90,10 @@ if [ "$mode" == "1" ]; then
         echo "  [2] q35 (现代/支持 PCIe 直通)"
         read -p "  请选择机型 (默认 1): " mach_idx; mach_idx=${mach_idx:-1}
         [[ "$mach_idx" == "2" ]] && vmachine="q35" || vmachine="pc"
+        [[ "$mach_idx" == "2" ]] && vmachine_label="q35" || vmachine_label="i440fx"
 
         read -p "[配置] 引导模式 [1] SeaBIOS [2] OVMF(UEFI) (默认 1): " v_bios; v_bios=${v_bios:-1}
+        [[ "$v_bios" == "2" ]] && bios_label="OVMF (UEFI)" || bios_label="SeaBIOS"
         read -p "[高级] 是否开启 SSD 仿真与 Discard 优化? (y/n, 默认 y): " v_ssd; v_ssd=${v_ssd:-y}
         read -p "[高级] 是否需要配置双网口 (WAN+LAN)? (y/n, 默认 n): " v_dual; v_dual=${v_dual:-n}
         read -p "  -> 网口 1 (eth0) 桥接至 (默认 vmbr0): " vbr0; vbr0=${vbr0:-vmbr0}
@@ -106,9 +108,25 @@ if [ "$mode" == "1" ]; then
         vst=${storage_list[$(($st_idx-1))]}
 
         echo -e "\n====================================================="
-        echo "确认创建: VM $vmid ($vname)"
-        echo "配置: $vcores 核($vcpu), $vmem MB, 存储 $vst"
-        echo "====================================================="
+        echo -e "${YELLOW}        配置摘要${NC}"
+        echo -e "====================================================="
+        echo -e "  部署类型:     VM 新建"
+        echo -e "  镜像文件:     $file_name"
+        echo -e "  VM ID:        $vmid"
+        echo -e "  名称:         $vname"
+        echo -e "  CPU:          $vcores 核 ($vcpu)"
+        echo -e "  内存:         $vmem MB"
+        echo -e "  Swap:         $vswap MB"
+        echo -e "  机型:         $vmachine_label"
+        echo -e "  引导模式:     $bios_label"
+        echo -e "  SSD 优化:     $([[ "$v_ssd" == "y" ]] && echo "开启" || echo "关闭")"
+        echo -e "  双网口:       $([[ "$v_dual" == "y" ]] && echo "开启" || echo "关闭")"
+        echo -e "  网口 1:       $vbr0"
+        if [ "$v_dual" == "y" ]; then
+            echo -e "  网口 2:       $vbr1"
+        fi
+        echo -e "  存储:         $vst"
+        echo -e "====================================================="
         read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
         echo -ne "[进度] 正在创建虚拟机并配置网口... "
@@ -124,6 +142,16 @@ if [ "$mode" == "1" ]; then
         storage_list=($(pvesm status -content images | awk 'NR>1 {print $1}'))
         vst=${storage_list[0]}
         v_ssd="n"
+
+        echo -e "\n====================================================="
+        echo -e "${YELLOW}        配置摘要${NC}"
+        echo -e "====================================================="
+        echo -e "  部署类型:     VM 注入"
+        echo -e "  镜像文件:     $file_name"
+        echo -e "  目标 VM ID:   $vmid"
+        echo -e "  存储:         $vst"
+        echo -e "====================================================="
+        read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
     fi
 
     # 【关键修改】使用 /var/tmp 替代 /tmp
@@ -190,6 +218,28 @@ elif [ "$mode" == "2" ]; then
 
     storage_list=($(pvesm status -content rootdir | awk 'NR>1 {print $1}'))
     selected_storage=${storage_list[0]}
+
+    [[ "$priv_idx" == "2" ]] && priv_label="特权" || priv_label="非特权"
+
+    echo -e "\n====================================================="
+    echo -e "${YELLOW}        配置摘要${NC}"
+    echo -e "====================================================="
+    echo -e "  部署类型:     LXC 容器"
+    echo -e "  镜像文件:     $file_name"
+    echo -e "  CT ID:        $ctid"
+    echo -e "  名称:         $cname"
+    echo -e "  权限模式:     $priv_label"
+    echo -e "  CPU:          $cores 核"
+    echo -e "  内存:         $mem MB"
+    echo -e "  Swap:         $swap_val MB"
+    echo -e "  磁盘大小:     ${dsize}G"
+    echo -e "  网桥:         $br"
+    echo -e "  Nesting:      $([[ "$nesting" == "y" ]] && echo "开启" || echo "关闭")"
+    echo -e "  rc.local:     $([[ "$opt_rc" == "y" ]] && echo "激活" || echo "不激活")"
+    echo -e "  DNS:          ${dns_server:-(使用宿主机)}"
+    echo -e "  存储:         $selected_storage"
+    echo -e "====================================================="
+    read -p "确认继续? (y/n, 默认 y): " confirm; [[ "${confirm:-y}" != "y" ]] && exit 0
 
     final_tar="$selected_file"
     if [[ "$file_name" == *.img || "$file_name" == *.img.gz ]]; then
