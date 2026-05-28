@@ -201,7 +201,7 @@ elif [ "$mode" == "2" ]; then
     echo " [1] 非特权 (更安全, 默认)"
     echo " [2] 特权 (支持拨号/硬件直接访问)"
     read -p "权限 模式选择 (默认 1): " priv_idx; priv_idx=${priv_idx:-1}
-    [[ "$priv_idx" == "2" ]] && unpriv=0 || unpriv=1
+    [ "$priv_idx" == "2" ] && priv_flag="" || priv_flag="--unprivileged"
 
     read -p "[配置] CPU 核心 (默认 1): " cores; cores=${cores:-1}
     read -p "[配置] 内存 MB (默认 512): " mem; mem=${mem:-512}
@@ -284,7 +284,7 @@ elif [ "$mode" == "2" ]; then
     [ -n "$dns_server" ] && extra_opts="$extra_opts --nameserver $dns_server"
 
     if pct create $ctid "$final_tar" --arch amd64 --hostname "$cname" --rootfs "$selected_storage:$dsize" \
-      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged --unprivileged $unpriv \
+      --memory "$mem" --swap "$swap_val" --cores "$cores" --ostype unmanaged $priv_flag \
       --net0 name=eth0,bridge=$br,ip=manual $extra_opts >/dev/null 2>&1; then
         echo -e "${GREEN}完成${NC}"
         echo -e "\n>> 操作成功：LXC 容器 $ctid 已就绪。"
