@@ -84,7 +84,6 @@ if [ "$mode" == "1" ]; then
         read -p "  请选择 CPU 模式 (默认 1): " cpu_idx; cpu_idx=${cpu_idx:-1}
         [[ "$cpu_idx" == "2" ]] && vcpu="kvm64" || vcpu="host"
         read -p "[配置] 内存大小 MB (默认 512): " vmem; vmem=${vmem:-512}
-        read -p "[配置] 虚拟内存 Swap MB (默认 0): " vswap; vswap=${vswap:-0}
         
         echo "  [1] i440fx (默认/兼容性好)"
         echo "  [2] q35 (现代/支持 PCIe 直通)"
@@ -116,7 +115,6 @@ if [ "$mode" == "1" ]; then
         echo -e "  名称:         $vname"
         echo -e "  CPU:          $vcores 核 ($vcpu)"
         echo -e "  内存:         $vmem MB"
-        echo -e "  Swap:         $vswap MB"
         echo -e "  机型:         $vmachine_label"
         echo -e "  引导模式:     $bios_label"
         echo -e "  SSD 优化:     $([[ "$v_ssd" == "y" ]] && echo "开启" || echo "关闭")"
