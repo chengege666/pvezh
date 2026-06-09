@@ -16,6 +16,48 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# 带进度条的解压/复制函数
+progress_decompress() {
+    local src="$1" dst="$2" desc="$3"
+    local src_size=$(stat -c%s "$src" 2>/dev/null || echo 0)
+    local ret=0
+
+    # 确保 pv 可用
+    if ! command -v pv &>/dev/null; then
+        echo -e "${YELLOW}[提示] 未检测到 pv 工具，正在安装...${NC}"
+        apt-get install -y pv >/dev/null 2>&1 || true
+    fi
+
+    if command -v pv &>/dev/null; then
+        # pv 方式：显示实时进度条、速率、ETA
+        echo -e "${desc}"
+        if [[ "$src" == *.gz ]]; then
+            pv -s "$src_size" "$src" | zcat > "$dst"; ret=${PIPESTATUS[0]}
+        else
+            pv -s "$src_size" "$src" > "$dst"; ret=$?
+        fi
+    else
+        # fallback：使用 dd status=progress
+        if [[ "$src" == *.gz ]]; then
+            echo -e "${desc} (文件大小: $(numfmt --to=iec $src_size))"
+            zcat "$src" | dd of="$dst" bs=4M status=progress 2>&1 | tail -1
+            ret=${PIPESTATUS[1]}
+        else
+            echo -e "${desc}"
+            dd if="$src" of="$dst" bs=4M status=progress; ret=$?
+        fi
+        echo ""
+    fi
+
+    # 检查结果
+    if [ $ret -ne 0 ] || [ ! -f "$dst" ]; then
+        echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
+        cleanup
+        exit 1
+    fi
+    echo ""
+}
+
 clear
 echo "====================================================="
 echo -e "${BLUE}          PVE 镜像转换工具  ${NC}"
@@ -154,20 +196,7 @@ if [ "$mode" == "1" ]; then
 
     # 【关键修改】使用 /var/tmp 替代 /tmp
     temp_img="/var/tmp/imp_$vmid.img"
-    echo -ne "[进度] 正在解压并处理磁盘镜像... "
-    if [[ "$file_name" == *.gz ]]; then
-        zcat "$selected_file" > "$temp_img" 2>/dev/null
-    else
-        cp "$selected_file" "$temp_img" 2>/dev/null
-    fi
-
-    # 检查上一步是否成功
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}失败！原因：磁盘空间不足或文件损坏。${NC}"
-        cleanup
-        exit 1
-    fi
-    echo -e "${GREEN}完成${NC}"
+    progress_decompress "$selected_file" "$temp_img" "[进度] 正在解压并处理磁盘镜像..."
 
     echo -ne "[进度] 正在注入磁盘并应用特性... "
     if qm importdisk $vmid "$temp_img" "$vst" >/dev/null 2>&1; then
@@ -246,18 +275,9 @@ elif [ "$mode" == "2" ]; then
         raw_img="/var/tmp/lxc_raw_$ctid.img"
         tmp_mnt="/var/tmp/lxc_mnt_$ctid"
         mkdir -p "$tmp_mnt"
-        
-        if [[ "$file_name" == *.gz ]]; then
-            zcat "$selected_file" > "$raw_img" 2>/dev/null
-        else
-            cp "$selected_file" "$raw_img" 2>/dev/null
-        fi
 
-        if [ $? -ne 0 ]; then
-             echo -e "${RED}转换失败：磁盘空间不足。${NC}"
-             exit 1
-        fi
-        
+        progress_decompress "$selected_file" "$raw_img" "[第一阶段] 正在解压磁盘镜像..."
+
         loop_dev=$(losetup -fP --show "$raw_img")
         if ! mount "${loop_dev}p2" "$tmp_mnt" >/dev/null 2>&1; then
             mount "${loop_dev}p1" "$tmp_mnt" >/dev/null 2>&1 || mount "$loop_dev" "$tmp_mnt" >/dev/null 2>&1
