@@ -127,11 +127,11 @@ if [ "$mode" == "1" ]; then
         [[ "$cpu_idx" == "2" ]] && vcpu="kvm64" || vcpu="host"
         read -p "[配置] 内存大小 MB (默认 512): " vmem; vmem=${vmem:-512}
         
-        echo "  [1] i440fx (默认/兼容性好)"
-        echo "  [2] q35 (现代/支持 PCIe 直通)"
+        echo "  [1] q35 (现代/支持 PCIe 直通, 默认)"
+        echo "  [2] i440fx (传统/兼容性好)"
         read -p "  请选择机型 (默认 1): " mach_idx; mach_idx=${mach_idx:-1}
-        [[ "$mach_idx" == "2" ]] && vmachine="q35" || vmachine="pc"
-        [[ "$mach_idx" == "2" ]] && vmachine_label="q35" || vmachine_label="i440fx"
+        [[ "$mach_idx" == "2" ]] && vmachine="pc" || vmachine="q35"
+        [[ "$mach_idx" == "2" ]] && vmachine_label="i440fx" || vmachine_label="q35"
 
         read -p "[配置] 引导模式 [1] SeaBIOS [2] OVMF(UEFI) (默认 1): " v_bios; v_bios=${v_bios:-1}
         [[ "$v_bios" == "2" ]] && bios_label="OVMF (UEFI)" || bios_label="SeaBIOS"
