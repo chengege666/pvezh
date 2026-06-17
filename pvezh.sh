@@ -225,7 +225,7 @@ elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
     echo -e "  ${GREEN}ID\t\t名称${NC}"
-    pct_out=$(pct list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $2}')
+    pct_out=$(pct list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $3}')
     if [ -n "$pct_out" ]; then
         echo "$pct_out"
     else
