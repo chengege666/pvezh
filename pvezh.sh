@@ -110,11 +110,9 @@ if [ "$mode" == "1" ]; then
     if [ "$vm_op" == "1" ]; then
         echo -e "\n${YELLOW}--- 现有虚拟机列表 ---${NC}"
         echo -e "  ${GREEN}ID\t\t名称${NC}"
-        qm_list_out=$(qm list 2>&1)
-        if [ -n "$qm_list_out" ]; then
-            echo "$qm_list_out" | awk 'NR>1 && NF>=2 {
-                printf "  %-10s\t%s\n", $1, $2
-            }'
+        qm_out=$(qm list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $2}')
+        if [ -n "$qm_out" ]; then
+            echo "$qm_out"
         else
             echo -e "  ${YELLOW}(暂无虚拟机)${NC}"
         fi
@@ -227,13 +225,9 @@ elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
     echo -e "  ${GREEN}ID\t\t名称${NC}"
-    pct_list_out=$(pct list 2>&1)
-    if [ -n "$pct_list_out" ]; then
-        echo "$pct_list_out" | awk 'NR>1 && NF>=2 {
-            # 取第一列(ID)和最后一列(Name)
-            id=$1; name=$NF;
-            printf "  %-10s\t%s\n", id, name
-        }'
+    pct_out=$(pct list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $2}')
+    if [ -n "$pct_out" ]; then
+        echo "$pct_out"
     else
         echo -e "  ${YELLOW}(暂无容器)${NC}"
     fi
