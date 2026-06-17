@@ -216,7 +216,16 @@ elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
     echo -e "  ${GREEN}ID\t\t名称${NC}"
-    pct list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $4}' || echo -e "  ${YELLOW}(暂无容器)${NC}"
+    pct_list_out=$(pct list 2>&1)
+    if [ -n "$pct_list_out" ]; then
+        echo "$pct_list_out" | awk 'NR>1 && NF>=2 {
+            # 取第一列(ID)和最后一列(Name)
+            id=$1; name=$NF;
+            printf "  %-10s\t%s\n", id, name
+        }'
+    else
+        echo -e "  ${YELLOW}(暂无容器)${NC}"
+    fi
     echo ""
     read -p "[配置] 容器 ID: " ctid; ctid=${ctid:-$suggest_id}
     echo " [1] OpenWrt-LXC (默认)"
