@@ -214,6 +214,9 @@ if [ "$mode" == "1" ]; then
 
 elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
+    echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
+    pct list 2>/dev/null || echo -e "${YELLOW}(暂无容器)${NC}"
+    echo ""
     read -p "[配置] 容器 ID: " ctid; ctid=${ctid:-$suggest_id}
     echo " [1] OpenWrt-LXC (默认)"
     echo " [2] immortalwrt-LXC"
