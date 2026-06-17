@@ -110,9 +110,16 @@ if [ "$mode" == "1" ]; then
     if [ "$vm_op" == "1" ]; then
         echo -e "\n${YELLOW}--- 现有虚拟机列表 ---${NC}"
         echo -e "  ${GREEN}ID\t\t名称${NC}"
-        qm_out=$(qm list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $2}')
-        if [ -n "$qm_out" ]; then
-            echo "$qm_out"
+        vm_out=""
+        for conf in /etc/pve/qemu-server/*.conf; do
+            [ -f "$conf" ] || continue
+            vid=$(basename "$conf" .conf)
+            vname=$(grep -m1 "^name:" "$conf" 2>/dev/null | awk '{print $2}')
+            [ -z "$vname" ] && vname="(未命名)"
+            vm_out="${vm_out}  ${vid}\t\t${vname}\n"
+        done
+        if [ -n "$vm_out" ]; then
+            echo -e "$vm_out"
         else
             echo -e "  ${YELLOW}(暂无虚拟机)${NC}"
         fi
@@ -225,9 +232,16 @@ elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
     echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
     echo -e "  ${GREEN}ID\t\t名称${NC}"
-    pct_out=$(pct list 2>/dev/null | awk 'NR>1 {printf "  %-10s\t%s\n", $1, $3}')
-    if [ -n "$pct_out" ]; then
-        echo "$pct_out"
+    ct_out=""
+    for conf in /etc/pve/lxc/*.conf; do
+        [ -f "$conf" ] || continue
+        cid=$(basename "$conf" .conf)
+        cname=$(grep -m1 "^hostname:" "$conf" 2>/dev/null | awk '{print $2}')
+        [ -z "$cname" ] && cname="(未命名)"
+        ct_out="${ct_out}  ${cid}\t\t${cname}\n"
+    done
+    if [ -n "$ct_out" ]; then
+        echo -e "$ct_out"
     else
         echo -e "  ${YELLOW}(暂无容器)${NC}"
     fi
