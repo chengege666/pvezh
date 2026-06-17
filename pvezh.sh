@@ -108,6 +108,18 @@ if [ "$mode" == "1" ]; then
     vm_op=${vm_op:-1}
 
     if [ "$vm_op" == "1" ]; then
+        echo -e "\n${YELLOW}--- 现有虚拟机列表 ---${NC}"
+        echo -e "  ${GREEN}ID\t\t名称${NC}"
+        qm_list_out=$(qm list 2>&1)
+        if [ -n "$qm_list_out" ]; then
+            echo "$qm_list_out" | awk 'NR>1 && NF>=2 {
+                id=$1; name=$NF;
+                printf "  %-10s\t%s\n", id, name
+            }'
+        else
+            echo -e "  ${YELLOW}(暂无虚拟机)${NC}"
+        fi
+        echo ""
         read -p "[配置] 请输入新虚拟机 ID: " vmid; vmid=${vmid:-$suggest_id}
         echo "  [1] OpenWrt-VM (默认)"
         echo "  [2] ImmortalWrt-VM"
