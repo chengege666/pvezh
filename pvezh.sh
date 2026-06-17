@@ -108,18 +108,25 @@ if [ "$mode" == "1" ]; then
     vm_op=${vm_op:-1}
 
     if [ "$vm_op" == "1" ]; then
-        echo -e "\n${YELLOW}--- 现有虚拟机列表 ---${NC}"
-        echo -e "  ${GREEN}ID\t\t名称${NC}"
-        vm_count=0
+        echo -e "\n${YELLOW}--- 已占用 ID 列表 ---${NC}"
+        echo -e "  ${GREEN}ID\t\t类型\t名称${NC}"
+        id_count=0
         for conf in $(ls /etc/pve/qemu-server/*.conf 2>/dev/null); do
             vid=$(basename "$conf" .conf)
             vname=$(sed -n 's/^name: *//p' "$conf" 2>/dev/null | head -1)
             [ -z "$vname" ] && vname="(未命名)"
-            printf "  %-10s\t%s\n" "$vid" "$vname"
-            vm_count=$((vm_count + 1))
+            printf "  %-10s\tVM\t%s\n" "$vid" "$vname"
+            id_count=$((id_count + 1))
         done
-        if [ "$vm_count" -eq 0 ]; then
-            echo -e "  ${YELLOW}(暂无虚拟机)${NC}"
+        for conf in $(ls /etc/pve/lxc/*.conf 2>/dev/null); do
+            cid=$(basename "$conf" .conf)
+            cname=$(sed -n 's/^hostname: *//p' "$conf" 2>/dev/null | head -1)
+            [ -z "$cname" ] && cname="(未命名)"
+            printf "  %-10s\tCT\t%s\n" "$cid" "$cname"
+            id_count=$((id_count + 1))
+        done
+        if [ "$id_count" -eq 0 ]; then
+            echo -e "  ${YELLOW}(暂无)${NC}"
         fi
         echo ""
         read -p "[配置] 请输入新虚拟机 ID: " vmid; vmid=${vmid:-$suggest_id}
@@ -228,18 +235,25 @@ if [ "$mode" == "1" ]; then
 
 elif [ "$mode" == "2" ]; then
     echo -e ">> 进入 ${BLUE}[LXC 容器]${NC} 模式"
-    echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
-    echo -e "  ${GREEN}ID\t\t名称${NC}"
-    ct_count=0
+    echo -e "\n${YELLOW}--- 已占用 ID 列表 ---${NC}"
+    echo -e "  ${GREEN}ID\t\t类型\t名称${NC}"
+    id_count=0
+    for conf in $(ls /etc/pve/qemu-server/*.conf 2>/dev/null); do
+        vid=$(basename "$conf" .conf)
+        vname=$(sed -n 's/^name: *//p' "$conf" 2>/dev/null | head -1)
+        [ -z "$vname" ] && vname="(未命名)"
+        printf "  %-10s\tVM\t%s\n" "$vid" "$vname"
+        id_count=$((id_count + 1))
+    done
     for conf in $(ls /etc/pve/lxc/*.conf 2>/dev/null); do
         cid=$(basename "$conf" .conf)
         cname=$(sed -n 's/^hostname: *//p' "$conf" 2>/dev/null | head -1)
         [ -z "$cname" ] && cname="(未命名)"
-        printf "  %-10s\t%s\n" "$cid" "$cname"
-        ct_count=$((ct_count + 1))
+        printf "  %-10s\tCT\t%s\n" "$cid" "$cname"
+        id_count=$((id_count + 1))
     done
-    if [ "$ct_count" -eq 0 ]; then
-        echo -e "  ${YELLOW}(暂无容器)${NC}"
+    if [ "$id_count" -eq 0 ]; then
+        echo -e "  ${YELLOW}(暂无)${NC}"
     fi
     echo ""
     read -p "[配置] 容器 ID: " ctid; ctid=${ctid:-$suggest_id}
