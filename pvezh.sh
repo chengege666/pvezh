@@ -113,8 +113,7 @@ if [ "$mode" == "1" ]; then
         qm_list_out=$(qm list 2>&1)
         if [ -n "$qm_list_out" ]; then
             echo "$qm_list_out" | awk 'NR>1 && NF>=2 {
-                id=$1; name=$NF;
-                printf "  %-10s\t%s\n", id, name
+                printf "  %-10s\t%s\n", $1, $2
             }'
         else
             echo -e "  ${YELLOW}(暂无虚拟机)${NC}"
