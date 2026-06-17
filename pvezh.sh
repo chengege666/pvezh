@@ -111,10 +111,9 @@ if [ "$mode" == "1" ]; then
         echo -e "\n${YELLOW}--- 现有虚拟机列表 ---${NC}"
         echo -e "  ${GREEN}ID\t\t名称${NC}"
         vm_count=0
-        for conf in /etc/pve/qemu-server/*.conf; do
-            [ -f "$conf" ] || continue
+        for conf in $(ls /etc/pve/qemu-server/*.conf 2>/dev/null); do
             vid=$(basename "$conf" .conf)
-            vname=$(grep -m1 "^name:" "$conf" 2>/dev/null | awk '{print $2}')
+            vname=$(sed -n 's/^name: *//p' "$conf" 2>/dev/null | head -1)
             [ -z "$vname" ] && vname="(未命名)"
             printf "  %-10s\t%s\n" "$vid" "$vname"
             vm_count=$((vm_count + 1))
@@ -232,10 +231,9 @@ elif [ "$mode" == "2" ]; then
     echo -e "\n${YELLOW}--- 现有容器列表 ---${NC}"
     echo -e "  ${GREEN}ID\t\t名称${NC}"
     ct_count=0
-    for conf in /etc/pve/lxc/*.conf; do
-        [ -f "$conf" ] || continue
+    for conf in $(ls /etc/pve/lxc/*.conf 2>/dev/null); do
         cid=$(basename "$conf" .conf)
-        cname=$(grep -m1 "^hostname:" "$conf" 2>/dev/null | awk '{print $2}')
+        cname=$(sed -n 's/^hostname: *//p' "$conf" 2>/dev/null | head -1)
         [ -z "$cname" ] && cname="(未命名)"
         printf "  %-10s\t%s\n" "$cid" "$cname"
         ct_count=$((ct_count + 1))
