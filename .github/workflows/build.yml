@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'  # 推送 tag 时触发（如 v1.0）
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,10 +23,8 @@ jobs:
           sha256sum pvezh > pvezh.sha256
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             pvezh
             pvezh.sha256
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
