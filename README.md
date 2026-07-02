@@ -98,3 +98,7 @@ chmod +x pvezh.sh
 - LXC 模式属于实验性功能，OpenWrt 在 LXC 下可能存在兼容性问题，推荐优先使用 VM 模式
 - ARM 架构镜像无法在 x86 PVE 上直接运行
 - 需要足够的磁盘空间存放临时镜像文件（位于 `/var/tmp/`）
+
+## 许可证
+
+本项目基于 [GNU General Public License v3.0](LICENSE) 开源。详见 [LICENSE](LICENSE) 文件。
